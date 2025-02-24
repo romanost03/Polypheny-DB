@@ -37,7 +37,16 @@ public class LockablesRegistry {
      * @return lockable instance representing a lock on the passed lockable object.
      */
     public Lockable getOrCreateLockable( @NonNull LockableObject lockableObject ) {
-        return lockables.computeIfAbsent( lockableObject, LockablesRegistry::convertToLockable );
+        Lockable lockable = lockables.get( lockableObject );
+        if ( lockable == null ) {
+            synchronized ( lockableObject ) {
+                lockable = convertToLockable( lockableObject );
+                if ( lockables.put( lockableObject, lockable ) != null ) {
+                    throw new IllegalStateException( "Lockable already exists: " + lockableObject );
+                }
+            }
+        }
+        return lockable;
     }
 
 
@@ -86,4 +95,5 @@ public class LockablesRegistry {
         Lockable namespace = LockablesRegistry.INSTANCE.getOrCreateLockable( LockableUtils.getNamespaceAsLockableObject( entity ) );
         return new LockableObjectWrapper( namespace, entity );
     }
+
 }
