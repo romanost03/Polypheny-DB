@@ -93,13 +93,13 @@ public class SqlCreateNamespace extends SqlCreate implements ExecutableStatement
 
     @Override
     public void execute( Context context, Statement statement, ParsedQueryContext parsedQueryContext ) {
-        DdlManager.getInstance().createNamespace( name.getSimple(), type, ifNotExists, replace, statement );
+        DdlManager.getInstance().createNamespace( name.getSimple(), type, ifNotExists, replace, false, statement );
     }
 
 
     @Override
     public Map<Lockable, LockType> deriveLockables( Context context, ParsedQueryContext parsedQueryContext ) {
-        return LockableUtils.getMapOfGlobalLockable(LockType.EXCLUSIVE);
+        return LockableUtils.getMapOfGlobalLockable( LockType.EXCLUSIVE );
 
     }
 
