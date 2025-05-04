@@ -165,79 +165,93 @@ public class PostgresqlSource extends AbstractJdbcSource implements MetadataProv
     }
 
 
-
-private void printTree( AbstractNode node, int depth ) {
-    System.out.println( "  ".repeat( depth ) + node.getType() + ": " + node.getName() );
-    for ( Map.Entry<String, Object> entry : node.getProperties().entrySet() ) {
-        System.out.println( "  ".repeat( depth + 1 ) + "- " + entry.getKey() + ": " + entry.getValue() );
+    private void printTree( AbstractNode node, int depth ) {
+        System.out.println( "  ".repeat( depth ) + node.getType() + ": " + node.getName() );
+        for ( Map.Entry<String, Object> entry : node.getProperties().entrySet() ) {
+            System.out.println( "  ".repeat( depth + 1 ) + "- " + entry.getKey() + ": " + entry.getValue() );
+        }
+        for ( AbstractNode child : node.getChildren() ) {
+            printTree( child, depth + 1 );
+        }
     }
-    for ( AbstractNode child : node.getChildren() ) {
-        printTree( child, depth + 1 );
+
+
+    public PostgresqlSource( final long storeId, final String uniqueName, final Map<String, String> settings, final DeployMode mode ) {
+        super(
+                storeId,
+                uniqueName,
+                settings,
+                mode,
+                "org.postgresql.Driver",
+                PostgresqlSqlDialect.DEFAULT,
+                false );
+        this.metadataRoot = null;
     }
-}
 
 
-public PostgresqlSource( final long storeId, final String uniqueName, final Map<String, String> settings, final DeployMode mode ) {
-    super(
-            storeId,
-            uniqueName,
-            settings,
-            mode,
-            "org.postgresql.Driver",
-            PostgresqlSqlDialect.DEFAULT,
-            false );
-    this.metadataRoot = null;
-}
-
-
-@Override
-public void shutdown() {
-    try {
-        removeInformationPage();
-        connectionFactory.close();
-    } catch ( SQLException e ) {
-        log.warn( "Exception while shutting down {}", getUniqueName(), e );
+    @Override
+    public void shutdown() {
+        try {
+            removeInformationPage();
+            connectionFactory.close();
+        } catch ( SQLException e ) {
+            log.warn( "Exception while shutting down {}", getUniqueName(), e );
+        }
     }
-}
 
 
-@Override
-protected void reloadSettings( List<String> updatedSettings ) {
-    // TODO: Implement disconnect and reconnect to PostgreSQL instance.
-}
+    @Override
+    protected void reloadSettings( List<String> updatedSettings ) {
+        // TODO: Implement disconnect and reconnect to PostgreSQL instance.
+    }
 
 
-@Override
-protected String getConnectionUrl( final String dbHostname, final int dbPort, final String dbName ) {
-    return String.format( "jdbc:postgresql://%s:%d/%s", dbHostname, dbPort, dbName );
-}
+    @Override
+    protected String getConnectionUrl( final String dbHostname, final int dbPort, final String dbName ) {
+        return String.format( "jdbc:postgresql://%s:%d/%s", dbHostname, dbPort, dbName );
+    }
 
 
-@Override
-protected boolean requiresSchema() {
-    return true;
-}
+    @Override
+    protected boolean requiresSchema() {
+        return true;
+    }
 
 
-@Override
-public List<PhysicalEntity> createTable( Context context, LogicalTableWrapper logical, AllocationTableWrapper allocation ) {
-    PhysicalTable table = adapterCatalog.createTable(
-            logical.table.getNamespaceName(),
-            logical.table.name,
-            logical.columns.stream().collect( Collectors.toMap( c -> c.id, c -> c.name ) ),
-            logical.table,
-            logical.columns.stream().collect( Collectors.toMap( t -> t.id, t -> t ) ),
-            logical.pkIds, allocation );
+    @Override
+    public List<PhysicalEntity> createTable( Context context, LogicalTableWrapper logical, AllocationTableWrapper allocation ) {
+        PhysicalTable table = adapterCatalog.createTable(
+                logical.table.getNamespaceName(),
+                logical.table.name,
+                logical.columns.stream().collect( Collectors.toMap( c -> c.id, c -> c.name ) ),
+                logical.table,
+                logical.columns.stream().collect( Collectors.toMap( t -> t.id, t -> t ) ),
+                logical.pkIds, allocation );
 
-    adapterCatalog.replacePhysical( currentJdbcSchema.createJdbcTable( table ) );
-    AbstractNode node = fetchMetadataTree();
-    return List.of( table );
-}
+        adapterCatalog.replacePhysical( currentJdbcSchema.createJdbcTable( table ) );
+        AbstractNode node = fetchMetadataTree();
+        return List.of( table );
+    }
+
+    @Override
+    public List<PhysicalEntity> createTable( Context context, LogicalTableWrapper logical, AllocationTableWrapper allocation, String physicalSchema ) {
+        PhysicalTable table = adapterCatalog.createTable(
+                physicalSchema,
+                logical.table.name,
+                logical.columns.stream().collect( Collectors.toMap( c -> c.id, c -> c.name ) ),
+                logical.table,
+                logical.columns.stream().collect( Collectors.toMap( t -> t.id, t -> t ) ),
+                logical.pkIds, allocation );
+
+        adapterCatalog.replacePhysical( currentJdbcSchema.createJdbcTable( table ) );
+        AbstractNode node = fetchMetadataTree();
+        return List.of( table );
+    }
 
 
-public static void getPreview() {
-    log.error( "Methodenaufruf für Postgresql-Preview funktioniert !!!" );
-}
+    public static void getPreview() {
+        log.error( "Methodenaufruf für Postgresql-Preview funktioniert !!!" );
+    }
 
 
 }

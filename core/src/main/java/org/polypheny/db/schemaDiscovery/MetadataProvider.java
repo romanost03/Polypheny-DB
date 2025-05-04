@@ -16,11 +16,19 @@
 
 package org.polypheny.db.schemaDiscovery;
 
+import org.polypheny.db.catalog.entity.allocation.AllocationTableWrapper;
+import org.polypheny.db.catalog.entity.logical.LogicalTableWrapper;
+import org.polypheny.db.catalog.entity.physical.PhysicalEntity;
+import org.polypheny.db.prepare.Context;
+import java.util.List;
+
 public interface MetadataProvider {
 
     AbstractNode fetchMetadataTree();
 
     Object fetchPreview(int limit);
+
+    List<PhysicalEntity> createTable( Context context, LogicalTableWrapper logical, AllocationTableWrapper allocation, String physicalSchema );
 
 
 }

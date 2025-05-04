@@ -108,6 +108,7 @@ import org.polypheny.db.partition.properties.TemperaturePartitionProperty.Partit
 import org.polypheny.db.partition.raw.RawTemperaturePartitionInformation;
 import org.polypheny.db.processing.DataMigrator;
 import org.polypheny.db.routing.RoutingManager;
+import org.polypheny.db.schemaDiscovery.MetadataProvider;
 import org.polypheny.db.transaction.Statement;
 import org.polypheny.db.transaction.Transaction;
 import org.polypheny.db.transaction.TransactionException;
@@ -223,14 +224,16 @@ public class DdlManagerImpl extends DdlManager {
         }
         // Create table, columns etc.
         for ( Map.Entry<String, List<ExportedColumn>> entry : exportedColumns.entrySet() ) {
-            // Make sure the table name is uniqueString tableName = entry.getKey();
-            String tableName = entry.getKey();
-            if ( catalog.getSnapshot().rel().getTable( namespace, tableName ).isPresent() ) {
-                int i = 0;
-                while ( catalog.getSnapshot().rel().getTable( namespace, tableName + i ).isPresent() ) {
-                    i++;
-                }
-                tableName += i;
+
+            String physicalSchema = entry.getValue().isEmpty()
+                    ? Catalog.DEFAULT_NAMESPACE_NAME
+                    : entry.getValue().get( 0 ).physicalSchemaName;
+
+            String baseName = entry.getKey();
+            String tableName = baseName;
+            int suffix = 0;
+            while ( catalog.getSnapshot().rel().getTable( namespace, tableName ).isPresent() ) {
+                tableName = baseName + suffix++;
             }
 
             LogicalTable logical = catalog.getLogicalRel( namespace ).addTable( tableName, EntityType.SOURCE, !(adapter).isDataReadOnly() );
@@ -271,14 +274,20 @@ public class DdlManagerImpl extends DdlManager {
 
             buildNamespace( Catalog.defaultNamespaceId, logical, adapter );
 
-            transaction.attachCommitAction( () ->
-                    // we can execute with initial logical and allocation data as this is a source and this will not change
-                    adapter.createTable( null, LogicalTableWrapper.of( logical, columns, List.of() ), AllocationTableWrapper.of( allocation.unwrapOrThrow( AllocationTable.class ), aColumns ) ) );
-            catalog.updateSnapshot();
+            String physicalSchemaFinal = physicalSchema;
+            transaction.attachCommitAction( () -> {
+                        // we can execute with initial logical and allocation data as this is a source and this will not change
+                        if ( adapter instanceof MetadataProvider mp ) {
+                            mp.createTable( null, LogicalTableWrapper.of( logical, columns, List.of() ), AllocationTableWrapper.of( allocation.unwrapOrThrow( AllocationTable.class ), aColumns ), physicalSchemaFinal );
+                        } else {
+                            adapter.createTable( null, LogicalTableWrapper.of( logical, columns, List.of() ), AllocationTableWrapper.of( allocation.unwrapOrThrow( AllocationTable.class ), aColumns ) );
+                        }
+
+                        catalog.updateSnapshot();
+                    });
+                    catalog.updateSnapshot();
 
         }
-        catalog.updateSnapshot();
-
     }
 
 

@@ -33,6 +33,8 @@ import org.polypheny.db.catalog.entity.physical.PhysicalEntity;
 import org.polypheny.db.catalog.entity.physical.PhysicalTable;
 import org.polypheny.db.catalog.exceptions.GenericRuntimeException;
 import org.polypheny.db.prepare.Context;
+import org.polypheny.db.schemaDiscovery.AbstractNode;
+import org.polypheny.db.schemaDiscovery.MetadataProvider;
 import org.polypheny.db.transaction.PUID;
 import org.polypheny.db.transaction.PolyXid;
 import org.polypheny.db.type.PolyType;
@@ -68,7 +70,7 @@ import java.util.stream.Collectors;
         description = "Which level of transaction isolation should be used.")
 @AdapterSettingString(name = "tables", defaultValue = "foo,bar",
         description = "List of tables which should be imported. The names must be separated by a comma.")
-public class OracleSource extends AbstractJdbcSource {
+public class OracleSource extends AbstractJdbcSource implements MetadataProvider {
 
     public OracleSource( final long storeId, final String uniqueName, final Map<String, String> settings, final DeployMode mode ) {
         super(
@@ -95,6 +97,22 @@ public class OracleSource extends AbstractJdbcSource {
 
 
     @Override
+    public List<PhysicalEntity> createTable( Context context, LogicalTableWrapper logical, AllocationTableWrapper allocation, String physicalSchema ) {
+        PhysicalTable table = adapterCatalog.createTable(
+                physicalSchema,
+                logical.table.name,
+                logical.columns.stream().collect( Collectors.toMap( c -> c.id, c -> c.name ) ),
+                logical.table,
+                logical.columns.stream().collect( Collectors.toMap( t -> t.id, t -> t ) ),
+                logical.pkIds, allocation );
+
+        adapterCatalog.replacePhysical( currentJdbcSchema.createJdbcTable( table ) );
+        AbstractNode node = fetchMetadataTree();
+        return List.of( table );
+    }
+
+
+    @Override
     public void shutdown() {
         try {
             removeInformationPage();
@@ -114,8 +132,7 @@ public class OracleSource extends AbstractJdbcSource {
     @Override
     public List<PhysicalEntity> createTable( Context context, LogicalTableWrapper logical, AllocationTableWrapper allocation ) {
         PhysicalTable table = adapterCatalog.createTable(
-                // logical.table.getNamespaceName(),
-                "SYSTEM",
+                logical.table.getNamespaceName(),
                 logical.table.name,
                 logical.columns.stream().collect( Collectors.toMap( c -> c.id, c -> c.name ) ),
                 logical.table,
@@ -219,5 +236,16 @@ public class OracleSource extends AbstractJdbcSource {
         return map;
     }
 
+
+    @Override
+    public AbstractNode fetchMetadataTree() {
+        return null;
+    }
+
+
+    @Override
+    public Object fetchPreview( int limit ) {
+        return null;
+    }
 
 }
