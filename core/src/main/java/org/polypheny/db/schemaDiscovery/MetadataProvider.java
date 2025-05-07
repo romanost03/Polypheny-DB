@@ -26,9 +26,6 @@ public interface MetadataProvider {
 
     AbstractNode fetchMetadataTree();
 
-    Object fetchPreview(int limit);
-
-    List<PhysicalEntity> createTable( Context context, LogicalTableWrapper logical, AllocationTableWrapper allocation, String physicalSchema );
-
+    Object fetchPreview( int limit );
 
 }
