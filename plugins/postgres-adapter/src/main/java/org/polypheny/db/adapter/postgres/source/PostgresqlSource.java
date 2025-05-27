@@ -70,110 +70,7 @@ import org.polypheny.db.transaction.PolyXid;
         description = "Which level of transaction isolation should be used.")
 @AdapterSettingString(name = "tables", defaultValue = "foo,bar",
         description = "List of tables which should be imported. The names must to be separated by a comma.")
-public class PostgresqlSource extends AbstractJdbcSource implements MetadataProvider {
-
-    private AbstractNode metadataRoot;
-
-
-    @Override
-    public AbstractNode fetchMetadataTree() {
-        String dbName = settings.get( "database" );
-        Node root = new Node( "relational", dbName );
-
-        Map<String, List<ExportedColumn>> exported = getExportedColumns();
-
-        Map<String, Map<String, List<ExportedColumn>>> grouped = new HashMap<>();
-        for ( Map.Entry<String, List<ExportedColumn>> entry : exported.entrySet() ) {
-            for ( ExportedColumn col : entry.getValue() ) {
-                grouped
-                        .computeIfAbsent( col.physicalSchemaName, k -> new HashMap<>() )
-                        .computeIfAbsent( col.physicalTableName, k -> new ArrayList<>() )
-                        .add( col );
-            }
-        }
-
-        for ( Map.Entry<String, Map<String, List<ExportedColumn>>> schemaEntry : grouped.entrySet() ) {
-            AbstractNode schemaNode = new Node( "schema", schemaEntry.getKey() );
-
-            for ( Map.Entry<String, List<ExportedColumn>> tableEntry : schemaEntry.getValue().entrySet() ) {
-                AbstractNode tableNode = new Node( "table", tableEntry.getKey() );
-
-                for ( ExportedColumn col : tableEntry.getValue() ) {
-                    AbstractNode colNode = new AttributeNode( "column", col.getName() );
-                    colNode.addProperty( "type", col.type.getName() );
-                    colNode.addProperty( "nullable", col.nullable );
-                    colNode.addProperty( "primaryKey", col.primary );
-
-                    if ( col.length != null ) {
-                        colNode.addProperty( "length", col.length );
-                    }
-                    if ( col.scale != null ) {
-                        colNode.addProperty( "scale", col.scale );
-                    }
-
-                    tableNode.addChild( colNode );
-                }
-
-                schemaNode.addChild( tableNode );
-            }
-
-            root.addChild( schemaNode );
-        }
-        this.metadataRoot = root;
-        return this.metadataRoot;
-    }
-
-
-    @Override
-    public Object fetchPreview( int limit ) {
-        Map<String, List<Map<String, Object>>> preview = new LinkedHashMap<>();
-
-        PolyXid xid = PolyXid.generateLocalTransactionIdentifier( PUID.EMPTY_PUID, PUID.EMPTY_PUID );
-        try {
-            ConnectionHandler ch = connectionFactory.getOrCreateConnectionHandler( xid );
-            java.sql.Connection conn = ch.getStatement().getConnection();
-
-            String[] tables = settings.get( "tables" ).split( "," );
-            for ( String str : tables ) {
-                String[] parts = str.split( "\\." );
-                String schema = parts.length == 2 ? parts[0] : null;
-                String table = parts.length == 2 ? parts[1] : parts[0];
-
-                String fqName = (schema != null ? schema + "." : "") + table;
-                List<Map<String, Object>> rows = new ArrayList<>();
-
-                try ( var stmt = conn.createStatement();
-                        var rs = stmt.executeQuery( "SELECT * FROM " + fqName + " LIMIT " + limit ) ) {
-
-                    var meta = rs.getMetaData();
-                    while ( rs.next() ) {
-                        Map<String, Object> row = new HashMap<>();
-                        for ( int i = 1; i <= meta.getColumnCount(); i++ ) {
-                            row.put( meta.getColumnName( i ), rs.getObject( i ) );
-                        }
-                        rows.add( row );
-                    }
-                }
-
-                preview.put( fqName, rows );
-            }
-        } catch ( Exception e ) {
-            throw new GenericRuntimeException( "Error fetching preview data", e );
-        }
-
-        return preview;
-    }
-
-
-    private void printTree( AbstractNode node, int depth ) {
-        System.out.println( "  ".repeat( depth ) + node.getType() + ": " + node.getName() );
-        for ( Map.Entry<String, Object> entry : node.getProperties().entrySet() ) {
-            System.out.println( "  ".repeat( depth + 1 ) + "- " + entry.getKey() + ": " + entry.getValue() );
-        }
-        for ( AbstractNode child : node.getChildren() ) {
-            printTree( child, depth + 1 );
-        }
-    }
+public class PostgresqlSource extends AbstractJdbcSource {
 
 
     public PostgresqlSource( final long storeId, final String uniqueName, final Map<String, String> settings, final DeployMode mode ) {
@@ -185,7 +82,6 @@ public class PostgresqlSource extends AbstractJdbcSource implements MetadataProv
                 "org.postgresql.Driver",
                 PostgresqlSqlDialect.DEFAULT,
                 false );
-        this.metadataRoot = null;
     }
 
 
@@ -235,13 +131,7 @@ public class PostgresqlSource extends AbstractJdbcSource implements MetadataProv
                 logical.pkIds, allocation );
 
         adapterCatalog.replacePhysical( currentJdbcSchema.createJdbcTable( table ) );
-        AbstractNode node = fetchMetadataTree();
         return List.of( table );
-    }
-
-
-    public static void getPreview() {
-        log.error( "Methodenaufruf für Postgresql-Preview funktioniert !!!" );
     }
 
 
